@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>慈濟中文學校｜老師端 & 家長信封成績單</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css">
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style id="mainStyle">
+:root{
+  --main:#6e5a8c;--accent:#e7c4dd;--light:#f9f6fb;--bg:#ffffff;
+  --danger:#e17c93;--line24:#f1cfe0;--line25:#b8a6d9;
+}
+*{box-sizing:border-box;}
+body{font-family:"Noto Sans TC",Arial,sans-serif;margin:0;background:var(--light);color:#3d3750;line-height:1.55;}
+h1{font-size:1.6rem;text-align:center;background:var(--main);color:#fff;margin:0;padding:22px 0 18px;letter-spacing:2px;}
+h2{color:var(--main);margin:22px 0 14px;font-size:1.3rem;}
+label{display:block;margin:10px 0 4px;font-weight:600;color:#53456e;}
+input[type="text"],textarea{width:100%;padding:8px 10px;border:1px solid #cfc7de;border-radius:6px;font-size:1rem;}
+textarea{resize:vertical;height:110px;}
+button{background:var(--accent);border:none;color:#fff;padding:10px 22px;border-radius:8px;font-size:1.02rem;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.09);transition:filter .2s;}
+button:hover{filter:brightness(.95);}
+button:disabled{opacity:.55;cursor:not-allowed;}
+.wrapper{max-width:1240px;margin:auto;padding:22px;}
+#teacherPanel{background:#fff;border-radius:16px;padding:26px 30px 34px;box-shadow:0 3px 12px rgba(0,0,0,.05);}
+#tblPreview{margin-top:18px;width:100%;}
+.note{font-size:.88rem;color:#8d7aa5;margin-top:6px;}
+.page{display:none;}
+.page-header{background:linear-gradient(90deg,var(--accent),var(--main) 90%);color:#fff;padding:10px 28px 9px;border-radius:16px 16px 0 0;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;font-size:1.02rem;box-shadow:0 3px 8px rgba(0,0,0,.06);}
+.page-header b{font-weight:600;}
+table.dataTable thead th{background:var(--main);color:#fff;font-size:1.05rem;}
+table.dataTable tbody tr:nth-child(even){background:var(--light);}
+table.dataTable th,table.dataTable td{font-size:1.02rem;border-bottom:1px solid #e5e1ec;}
+canvas{width:100%!important;height:440px!important;margin:22px auto;display:block;}
+.result-box{border-radius:14px;background:#fff;box-shadow:0 2px 12px rgba(185,172,198,.09);margin:28px 0 34px;padding:18px 28px 20px 20px;position:relative;border-left:8px solid var(--accent);}
+.result-box.strong{border-left-color:#92e6b6;}
+.result-box.weak{border-left-color:#ffcfa8;}
+.result-table{border-collapse:separate;border-spacing:0;width:100%;background:#faf8fc;border-radius:9px;overflow:hidden;margin-top:14px;margin-bottom:10px;}
+.result-table th{background:#ece3f3;color:#6e5a8c;font-size:1.04rem;font-weight:600;border-bottom:2px solid #e5dfee;padding:8px 12px;}
+.result-table td{background:#fff;color:#3d3750;border-bottom:1px solid #ece3f3;padding:8px 12px;}
+.summary-note{font-size:.95rem;color:#8f79a5;margin:6px 0;font-style:italic;}
+#cover{position:fixed;inset:0;background:#f4f1f8;display:flex;align-items:center;justify-content:center;z-index:9999;}
+.envelope{position:relative;width:360px;height:240px;perspective:1000px;cursor:pointer;}
+.envelope .flap{position:absolute;top:0;left:0;width:100%;height:50%;background:var(--accent);transform-origin:top center;transition:transform .8s ease;box-shadow:0 3px 6px rgba(0,0,0,.15);}
+.envelope .body{position:absolute;top:50%;left:0;width:100%;height:50%;background:#fff;border:2px solid var(--accent);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:14px 8px;}
+.envelope .body h2{margin:0;font-size:1.12rem;color:var(--main);}
+.envelope .body p{margin:4px 0 0;font-size:.95rem;color:#555;}
+.envelope.open .flap{transform:rotateX(-180deg);}
+</style>
+</head>
+<body>
+<h1>慈濟中文學校｜老師端操作 & 家長端信封檔</h1>
+
+<div id="teacherPanel" class="wrapper">
+  <h2>老師端 ➜ 產生家長電子成績單</h2>
+  <label>學年度（必填）</label>
+  <input type="text" id="inpYear" placeholder="例：2024-2025">
+  <label>學生姓名（必填）</label>
+  <input type="text" id="inpStudent" placeholder="例：王小明">
+  <label>教師姓名（必填）</label>
+  <input type="text" id="inpTeacher" placeholder="例：張老師">
+  <label>教師講評（約 300 字，必填）</label>
+  <textarea id="inpComment" placeholder="請輸入教師綜合評語…"></textarea>
+  <label>上傳評量 CSV（必填）</label>
+  <input type="file" id="csvInput" accept=".csv">
+  <div class="note">※ CSV 欄位順序需與範例相同：範疇,Category,評量指標,Indicator,核心說明,Description,2024,2025,進步%,2026目標</div>
+  <table id="tblPreview" class="display"></table>
+  <button id="exportBtn" disabled style="margin-top:22px">匯出家長電子成績單</button>
+</div>
+
+<!-- 信封 + 四頁家長版（預設隱藏，只用於匯出） -->
+<div id="cover" style="display:none">
+  <div class="envelope" id="env">
+    <div class="flap"></div>
+    <div class="body"><h2 id="coverTitle">電子成績單</h2><p>點擊以開啟成績單</p></div>
+  </div>
+</div>
+<div id="page-0" class="page wrapper">
+  <div class="page-header"><span><b>學年度</b>：<span id="phYear0"></span>　<b>學生</b>：<span id="phStu0"></span></span><span class="right">第 1/4 頁</span></div>
+  <h2>成績表（上）</h2>
+  <table id="tbl1" class="display"><thead><tr>
+    <th>範疇</th><th>Category</th><th>評量指標</th><th>Indicator</th><th>核心說明</th><th>Description</th><th>2024</th><th>2025</th><th>進步%</th><th>2026目標</th>
+  </tr></thead><tbody></tbody></table>
+</div>
+<div id="page-1" class="page wrapper">
+  <div class="page-header"><span><b>學年度</b>：<span id="phYear1"></span>　<b>學生</b>：<span id="phStu1"></span></span><span class="right">第 2/4 頁</span></div>
+  <h2>成績表（下）</h2>
+  <table id="tbl2" class="display"><thead><tr>
+    <th>範疇</th><th>Category</th><th>評量指標</th><th>Indicator</th><th>核心說明</th><th>Description</th><th>2024</th><th>2025</th><th>進步%</th><th>2026目標</th>
+  </tr></thead><tbody></tbody></table>
+</div>
+<div id="page-2" class="page wrapper">
+  <div class="page-header"><span><b>學年度</b>：<span id="phYear2"></span>　<b>學生</b>：<span id="phStu2"></span></span><span class="right">第 3/4 頁</span></div>
+  <h2>2025 分數圖表分析</h2>
+  <canvas id="cvBar"></canvas><canvas id="cvLine"></canvas>
+  <p class="note">（提示：家長點擊任意柱子或指標文字才動畫升起）</p>
+  <canvas id="cvRadar"></canvas>
+</div>
+<div id="page-3" class="page wrapper">
+  <div class="page-header"><span><b>學年度</b>：<span id="phYear3"></span>　<b>學生</b>：<span id="phStu3"></span></span><span class="right">第 4/4 頁</span></div>
+  <h2>Summary & Analysis</h2>
+  <div id="strongBox" class="result-box strong"></div>
+  <div id="weakBox" class="result-box weak"></div>
+  <h2 style="margin-top:24px">教師講評</h2><p id="teacherCmt"></p>
+</div>
+
+<script id="reportData" type="application/json">null</script>
+<script>
+const $ = s => document.querySelector(s);
+let csvRows = [], dtPrev = null;
+
+// ----- 預覽與檔案上傳 -----
+function renderPreview(data){
+  if(dtPrev){ $(dtPrev).DataTable().destroy(); $('#tblPreview').innerHTML=''; }
+  $('#tblPreview').innerHTML='<thead><tr><th>範疇</th><th>Category</th><th>評量指標</th><th>Indicator</th><th>核心說明</th><th>Description</th><th>2024</th><th>2025</th><th>進步%</th><th>2026目標</th></tr></thead><tbody></tbody>';
+  const tb = $('#tblPreview tbody');
+  data.forEach(r=>{
+    const tr = document.createElement('tr');
+    r.forEach(c=>{ const td=document.createElement('td'); td.textContent=c; tr.appendChild(td); });
+    tb.appendChild(tr);
+  });
+  dtPrev = $('#tblPreview');
+  $(dtPrev).DataTable({paging:false,searching:false,info:false});
+}
+$('#csvInput').addEventListener('change',e=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  Papa.parse(file,{
+    complete: res=>{
+      const all = res.data.filter(r=>r.join('').trim()!=='');
+      csvRows = all.length && all[0][0].includes('範疇') ? all.slice(1) : all;
+      renderPreview(csvRows); checkReady();
+    },
+    error: err=>alert('CSV 解析失敗：'+err)
+  });
+});
+['#inpYear','#inpStudent','#inpTeacher','#inpComment'].forEach(id=>$(id).addEventListener('input',checkReady));
+function checkReady(){
+  $('#exportBtn').disabled = !($('#inpYear').value && $('#inpStudent').value && $('#inpTeacher').value && $('#inpComment').value && csvRows.length);
+}
+
+// ----- 匯出家長信封 HTML -----
+$('#exportBtn').addEventListener('click',()=>{
+  const data = {
+    year:     $('#inpYear').value.trim(),
+    student:  $('#inpStudent').value.trim(),
+    teacher:  $('#inpTeacher').value.trim(),
+    comment:  $('#inpComment').value.trim(),
+    rows:     csvRows
+  };
+
+  // 把 style 和 js 都寫死在變數
+  const styleContent = `
+:root{
+  --main:#6e5a8c;--accent:#e7c4dd;--light:#f9f6fb;--bg:#ffffff;
+  --danger:#e17c93;--line24:#f1cfe0;--line25:#b8a6d9;
+}
+*{box-sizing:border-box;}
+body{font-family:"Noto Sans TC",Arial,sans-serif;margin:0;background:var(--light);color:#3d3750;line-height:1.55;}
+h1{font-size:1.6rem;text-align:center;background:var(--main);color:#fff;margin:0;padding:22px 0 18px;letter-spacing:2px;}
+h2{color:var(--main);margin:22px 0 14px;font-size:1.3rem;}
+.page{display:none;}
+.page-header{background:linear-gradient(90deg,var(--accent),var(--main) 90%);color:#fff;padding:10px 28px 9px;border-radius:16px 16px 0 0;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;font-size:1.02rem;box-shadow:0 3px 8px rgba(0,0,0,.06);}
+.page-header b{font-weight:600;}
+table.dataTable thead th{background:var(--main);color:#fff;font-size:1.05rem;}
+table.dataTable tbody tr:nth-child(even){background:var(--light);}
+table.dataTable th,table.dataTable td{font-size:1.02rem;border-bottom:1px solid #e5e1ec;}
+canvas{width:100%!important;height:440px!important;margin:22px auto;display:block;}
+.result-box{border-radius:14px;background:#fff;box-shadow:0 2px 12px rgba(185,172,198,.09);margin:28px 0 34px;padding:18px 28px 20px 20px;position:relative;border-left:8px solid var(--accent);}
+.result-box.strong{border-left-color:#92e6b6;}
+.result-box.weak{border-left-color:#ffcfa8;}
+.result-table{border-collapse:separate;border-spacing:0;width:100%;background:#faf8fc;border-radius:9px;overflow:hidden;margin-top:14px;margin-bottom:10px;}
+.result-table th{background:#ece3f3;color:#6e5a8c;font-size:1.04rem;font-weight:600;border-bottom:2px solid #e5dfee;padding:8px 12px;}
+.result-table td{background:#fff;color:#3d3750;border-bottom:1px solid #ece3f3;padding:8px 12px;}
+.summary-note{font-size:.95rem;color:#8f79a5;margin:6px 0;font-style:italic;}
+#cover{position:fixed;inset:0;background:#f4f1f8;display:flex;align-items:center;justify-content:center;z-index:9999;}
+.envelope{position:relative;width:360px;height:240px;perspective:1000px;cursor:pointer;}
+.envelope .flap{position:absolute;top:0;left:0;width:100%;height:50%;background:var(--accent);transform-origin:top center;transition:transform .8s ease;box-shadow:0 3px 6px rgba(0,0,0,.15);}
+.envelope .body{position:absolute;top:50%;left:0;width:100%;height:50%;background:#fff;border:2px solid var(--accent);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:14px 8px;}
+.envelope .body h2{margin:0;font-size:1.12rem;color:var(--main);}
+.envelope .body p{margin:4px 0 0;font-size:.95rem;color:#555;}
+.envelope.open .flap{transform:rotateX(-180deg);}
+`;
+
+  const parentJS = `
+<script>
+(function(){
+  const q=s=>document.querySelector(s),pages=[...document.querySelectorAll('.page')];
+  let pageNow=0,chLine,chBar,chRadar;
+  const RD=document.getElementById('reportData'); if(!RD||RD.textContent.trim()==='null')return;
+  const {year,student,comment,rows}=JSON.parse(RD.textContent.trim());
+  for(let i=0;i<4;i++){ q('#phYear'+i).textContent=year; q('#phStu'+i).textContent=student; }
+  q('#coverTitle').textContent=student+" "+year+" 成績單";
+  q('#cover').style.display='flex';
+  q('#env').addEventListener('click',()=>{q('#env').classList.add('open');setTimeout(()=>{q('#cover').style.display='none';showPage(0,true);},800);});
+  const half=Math.ceil(rows.length/2);
+  [ ['#tbl1',rows.slice(0,half)], ['#tbl2',rows.slice(half)] ].forEach(([sel,data])=>{
+    const $tbl=window.jQuery(sel),tbody=$tbl.find('tbody')[0]; tbody.innerHTML='';
+    data.forEach(r=>{const tr=document.createElement('tr'); r.forEach(c=>{const td=document.createElement('td'); td.textContent=c; tr.appendChild(td);}); tbody.appendChild(tr);});
+    if(window.jQuery.fn.DataTable.isDataTable(sel)) $tbl.DataTable().destroy();
+    $tbl.DataTable({paging:false,searching:true,info:false,language:{search:'搜尋:'}});
+  });
+  function buildCharts(){
+    const labels=rows.map(r=>r[2]),y24=rows.map(r=>r[6]),y25=rows.map(r=>r[7]),isMax=rows.map(r=>String(r[9]).toLowerCase()==='max');
+    [chLine,chBar,chRadar].forEach(c=>c&&c.destroy());
+    chBar=new Chart(q('#cvBar'),{type:'bar',data:{labels,datasets:[{label:'2025 Score',data:Array(labels.length).fill(0),backgroundColor:labels.map(()=> "var(--accent)"),borderColor:labels.map(()=> "var(--main)"),borderWidth:2}]},
+      options:{animation:{duration:0},plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,max:10}}}});
+    q('#cvBar').onclick=e=>{
+      let mx=e.offsetX,idx=0,min=1e9; chBar.scales.x.ticks.forEach((_,i)=>{let px=chBar.scales.x.getPixelForValue(i),d=Math.abs(mx-px);if(d<min){min=d;idx=i;}});
+      chBar.data.datasets[0].data[idx]=0; chBar.update();
+      setTimeout(()=>{ chBar.data.datasets[0].data[idx]=y25[idx];
+        if(isMax[idx]){chBar.data.datasets[0].backgroundColor[idx]="var(--danger)";chBar.data.datasets[0].borderColor[idx]="#c55e78"; chBar.update(); star(e.pageX,e.pageY);}
+        else{chBar.data.datasets[0].backgroundColor[idx]="var(--accent)";chBar.data.datasets[0].borderColor[idx]="var(--main)"; chBar.update();}
+      },60);
+    };
+    chLine=new Chart(q('#cvLine'),{type:'line',data:{labels,datasets:[{label:'2024',data:y24,borderColor:'var(--line24)',fill:false,borderWidth:2,tension:.35},
+      {label:'2025',data:y25,borderColor:'var(--line25)',fill:false,borderWidth:2,tension:.35}]},
+      options:{animation:{duration:1500},plugins:{legend:{labels:{boxWidth:14}}},responsive:true}});
+    const byDom={},domLabels=[],domAvg=[]; rows.forEach(r=>{ if(!byDom[r[0]])byDom[r[0]]=[]; byDom[r[0]].push(r[7]);});
+    for(const k in byDom){ domLabels.push(k); domAvg.push((byDom[k].reduce((a,b)=>a+b)/byDom[k].length).toFixed(2)); }
+    chRadar=new Chart(q('#cvRadar'),{type:'radar',data:{labels:domLabels,datasets:[{label:'2025 平均',data:domAvg,backgroundColor:'rgba(232,196,221,.35)',borderColor:'var(--line25)',borderWidth:2}]},
+      options:{scales:{r:{beginAtZero:true,max:10,ticks:{stepSize:2}}}}});
+  } buildCharts();
+  (function(){
+    q('#teacherCmt').textContent=comment||'(無)';
+    const y25=rows.map(r=>r[7]),labels=rows.map(r=>r[2]); let strong=[],weak=[];
+    y25.forEach((v,i)=>{ (v>=9?strong:weak).push({指標:labels[i],分數:v}); });
+    q('#strongBox').innerHTML='<div class="summary-note">分數達 9–10 分為精熟等級，請持續發揮強項！</div>'+
+      (strong.length?'<b style="font-size:1.1rem">優勢亮點</b><table class="result-table"><tr><th>指標</th><th>2025</th></tr>'+
+      strong.map(r=>'<tr class="score-high"><td>'+r.指標+'</td><td>'+r.分數+'</td></tr>').join('')+'</table>':'<b>無特別突出項目。</b>');
+    q('#weakBox').innerHTML='<div class="summary-note">分數低於 9 表示該指標仍有進步空間。</div>'+
+      (weak.length?'<b style="font-size:1.1rem">需努力 ( &lt; 9 )</b><table class="result-table"><tr><th>指標</th><th>2025</th></tr>'+
+      weak.map(r=>'<tr class="score-low"><td>'+r.指標+'</td><td>'+r.分數+'</td></tr>').join('')+'</table>':'<b>未發現明顯短板。</b>');
+  })();
+  const nav=document.createElement('div');nav.style="text-align:center;margin-top:20px";
+  nav.innerHTML='<button id="prevBtn" disabled>Prev</button> <button id="nextBtn" disabled>Next</button> <button id="pdfBtn">下載 PDF</button>';
+  document.body.appendChild(nav);
+  const btnP=q('#prevBtn'),btnN=q('#nextBtn'),btnPDF=q('#pdfBtn');
+  btnP.onclick=()=>showPage(pageNow-1); btnN.onclick=()=>showPage(pageNow+1);
+  function showPage(n,init=false){ if(n<0||n>=pages.length)return; pages.forEach((p,i)=>p.style.display=i===n?'block':'none'); pageNow=n;
+    btnP.disabled=n===0; btnN.disabled=n===pages.length-1; if(n===2&&!init)[chLine,chBar,chRadar].forEach(c=>{c.resize();c.update();}); }
+  function star(x,y){ for(let i=0;i<12;i++){const s=document.createElement('div'); s.className='star'; document.body.appendChild(s);
+      s.style.left=x+'px'; s.style.top=y+'px'; const a=Math.random()*6.28,d=40+Math.random()*60;
+      s.animate([{transform:'translate(0,0)',opacity:1},{transform:'translate('+Math.cos(a)*d+'px,'+Math.sin(a)*d+'px)',opacity:0}],{duration:900});
+      setTimeout(()=>s.remove(),950);} }
+  btnPDF.onclick=async()=>{const {jsPDF}=window.jspdf,pdf=new jsPDF({unit:'px',format:'a4'}),main=[110,90,140];
+    for(let i=0;i<pages.length;i++){showPage(i);const cnv=await html2canvas(pages[i]);const w=pdf.internal.pageSize.getWidth(),h=cnv.height*w/cnv.width;
+      if(i)pdf.addPage();pdf.setFillColor(...main);pdf.rect(0,0,w,30,'F');pdf.setTextColor(255,255,255);pdf.setFontSize(14);
+      pdf.text(year+' 成績單 — '+student,14,20);pdf.text((i+1)+'/'+pages.length,w-32,20);
+      pdf.addImage(cnv,'PNG',0,34,w,h-34);} showPage(0); pdf.save(student+'_'+year+'_成績單.pdf'); };
+})();
+</script>
+`;
+
+  // 完整組裝
+  const html = `<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>${data.student} ${data.year} 成績單</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css">
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>${styleContent}</style>
+</head>
+<body>
+${$('#cover').outerHTML}
+${$('#page-0').outerHTML}
+${$('#page-1').outerHTML}
+${$('#page-2').outerHTML}
+${$('#page-3').outerHTML}
+<script id="reportData" type="application/json">${JSON.stringify(data)}</script>
+${parentJS}
+</body>
+</html>
+`;
+
+  const blob = new Blob([ html ],{type:'text/html;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = `${data.student}_${data.year}_成績單.html`; document.body.appendChild(a);
+  a.click(); document.body.removeChild(a); URL.revokeObjectURL(a.href);
+});
+</script>
+</body>
+</html>
