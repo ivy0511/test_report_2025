@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>慈濟中文學校｜電子成績單</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css">
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+<!-- config.js 應定義 EMAILJS_PUBLIC_KEY、EMAILJS_SERVICE_ID、EMAILJS_TEMPLATE_ID -->
+<script src="config.js"></script>
+<style>
+:root{
+  --main:#6e5a8c;
+  --accent:#e7c4dd;
+  --light:#f9f6fb;
+  --bg:#ffffff;
+  --danger:#e17c93;
+  --line24:#f1cfe0;
+  --line25:#b8a6d9;
+}
+*{box-sizing:border-box;}
+body{font-family:"Noto Sans TC",Arial,sans-serif;margin:0;background:var(--light);color:#3d3750;}
+h1{font-size:1.5rem;text-align:center;background:var(--main);color:#fff;padding:20px 0 15px;letter-spacing:3px;margin:0;box-shadow:0 2px 10px rgba(0,0,0,.05);}
+h2{color:var(--main);margin:22px 0 12px;font-size:1.22rem;letter-spacing:.5px;}
+h3{font-size:1.07rem;color:var(--main);margin:20px 0 8px;}
+.container{padding:20px;max-width:1220px;margin:auto;}
+input,textarea,button{margin:6px;}
+input[type=file],button{background:var(--accent);border:none;color:#fff;padding:8px 18px;border-radius:7px;font-size:.99rem;cursor:pointer;box-shadow:0 2px 4px rgba(0,0,0,.08);transition:filter .2s;}
+input[type=file]:hover,button:hover{filter:brightness(.95);}
+input[type=email],input[type=text],textarea{padding:8px 10px;border:1.3px solid #cbbcd5;border-radius:7px;font-size:.97rem;background:#fff;}
+textarea{vertical-align:top;width:330px;height:70px;resize:vertical;}
+button:disabled{opacity:.55;cursor:not-allowed;}
+.page{display:none;}
+.page-header{background:linear-gradient(90deg,var(--accent),var(--main) 90%);color:#fff;padding:10px 28px 9px;border-radius:16px 16px 0 0;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;font-size:1.02rem;box-shadow:0 3px 8px rgba(0,0,0,.06);}
+.page-header b{font-weight:600;}
+.page-header .right{font-size:.94rem;}
+@media print{.container{max-width:100%;}body{background:#fff;}}
+/* === DataTables === */
+table{width:100%;border-collapse:collapse;}
+table.dataTable thead th{background:var(--main);color:#fff;font-size:1.05rem;}
+table.dataTable tbody tr:nth-child(even){background:var(--light);}
+table.dataTable th,table.dataTable td{font-size:1.02rem;border-bottom:1px solid #e5e1ec;}
+/* === Charts === */
+canvas{width:100%!important;height:440px!important;margin:22px auto;display:block;}
+.star{position:absolute;width:12px;height:12px;background:var(--accent);clip-path:polygon(50% 0,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%);}
+.tip{font-size:.94rem;text-align:center;color:#666;margin-top:-6px;}
+/* === Summary & Analysis 美化 === */
+.result-box{border-radius:14px;background:#fff;box-shadow:0 2px 12px rgba(185,172,198,.09);margin:28px 0 34px;padding:18px 28px 20px 20px;position:relative;border-left:8px solid var(--accent);}
+.result-box.strong{border-left-color:#92e6b6;}
+.result-box.weak{border-left-color:#ffcfa8;}
+.result-table{border-collapse:separate;border-spacing:0;width:100%;background:#faf8fc;border-radius:9px;overflow:hidden;margin-top:14px;margin-bottom:10px;}
+.result-table th{background:#ece3f3;color:#6e5a8c;font-size:1.04rem;font-weight:600;border-bottom:2px solid #e5dfee;padding:8px 12px;}
+.result-table td{background:#fff;color:#3d3750;border-bottom:1px solid #ece3f3;padding:8px 12px;}
+.result-table tr:last-child td{border-bottom:none;}
+.score-high{background:#f4fbf4!important;}
+.score-low{background:#fff8f3!important;}
+.summary-note{font-size:.95rem;color:#8f79a5;margin-top:6px;margin-bottom:6px;font-style:italic;}
+/* === 信封動畫 === */
+#cover{position:fixed;inset:0;background:#f4f1f8;display:none;align-items:center;justify-content:center;z-index:9999;}
+.envelope{position:relative;width:360px;height:240px;perspective:1000px;cursor:pointer;}
+.envelope .flap{position:absolute;top:0;left:0;width:100%;height:50%;background:var(--accent);transform-origin:top center;transition:transform .8s ease;box-shadow:0 3px 6px rgba(0,0,0,.15);}
+.envelope .body{position:absolute;top:50%;left:0;width:100%;height:50%;background:#fff;border:2px solid var(--accent);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:14px 8px;}
+.envelope .body h2{margin:0;font-size:1.12rem;color:var(--main);}
+.envelope .body p{margin:4px 0 0;font-size:.95rem;color:#555;}
+.envelope.open .flap{transform:rotateX(-180deg);}
+</style>
+</head>
+<body>
+<h1>慈濟中文學校</h1>
+<!-- ===== 資料輸入區 (老師端) ===== -->
+<div class="container" id="inputPane" style="background:var(--bg)">
+  學年度 <input type="text" id="yearInput" value="2024-2025" style="width:96px">
+  學生 <input type="text" id="stuInput" placeholder="王小明">
+  教師 <input type="text" id="teaInput" placeholder="張老師">
+  <br>
+  教師評語 <textarea id="cmtInput" placeholder="請輸入教師總評…"></textarea><br>
+  <input type="file" id="fileInput" accept=".csv">
+  <button id="uploadBtn" disabled>上傳並解析</button><br>
+  家長 E-mail <input type="email" id="mailInput" placeholder="parent@example.com">
+  <button id="sendBtn" disabled>寄送 PDF</button>
+  <span id="status" style="margin-left:12px;color:var(--danger);"></span>
+</div>
+<!-- ===== 成績單頁面 ===== -->
+<div id="page-0" class="page"><div class="container">
+  <div class="page-header">
+    <span><b>學年度</b>：<span id="phYear0"></span>　<b>學生</b>：<span id="phStu0"></span></span>
+    <span class="right">第 1/4 頁</span></div>
+  <h2>成績表（上）</h2>
+  <table id="tbl1" class="display"><thead><tr>
+    <th>範疇</th><th>Category</th><th>評量指標</th><th>Indicator</th><th>核心說明</th><th>Description</th><th>2024</th><th>2025</th><th>進步%</th><th>2026目標</th></tr></thead><tbody></tbody></table></div></div>
+<div id="page-1" class="page"><div class="container">
+  <div class="page-header">
+    <span><b>學年度</b>：<span id="phYear1"></span>　<b>學生</b>：<span id="phStu1"></span></span>
+    <span class="right">第 2/4 頁</span></div>
+  <h2>成績表（下）</h2>
+  <table id="tbl2" class="display"><thead><tr>
+    <th>範疇</th><th>Category</th><th>評量指標</th><th>Indicator</th><th>核心說明</th><th>Description</th><th>2024</th><th>2025</th><th>進步%</th><th>2026目標</th></tr></thead><tbody></tbody></table></div></div>
+<div id="page-2" class="page"><div class="container">
+  <div class="page-header">
+    <span><b>學年度</b>：<span id="phYear2"></span>　<b>學生</b>：<span id="phStu2"></span></span>
+    <span class="right">第 3/4 頁</span></div>
+  <h2>2025 分數圖表分析</h2>
+  <canvas id="cvBar"></canvas>
+  <canvas id="cvLine"></canvas>
+  <p class="tip">點擊任意柱子或 X 軸指標文字，才動畫升起；Max 目標動畫變粉且灑星星</p>
+  <canvas id="cvRadar"></canvas>
+</div></div>
+<div id="page-3" class="page"><div class="container">
+  <div class="page-header">
+    <span><b>學年度</b>：<span id="phYear3"></span>　<b>學生</b>：<span id="phStu3"></span></span>
+    <span class="right">第 4/4 頁</span></div>
+  <h2>Summary & Analysis</h2>
+  <div id="strongBox" class="result-box strong"></div>
+  <div id="weakBox" class="result-box weak"></div>
+  <h3>教師講評</h3><p id="teacherCmt"></p>
+</div></div>
+<!-- ===== 導覽按鈕 ===== -->
+<div class="container" style="text-align:center">
+  <button id="prevBtn" disabled>Prev</button>
+  <button id="nextBtn" disabled>Next</button>
+  <button id="pdfBtn"  disabled>下載 PDF</button>
+</div>
+<!-- ===== 信封封面 ===== -->
+<div id="cover">
+  <div class="envelope" id="env">
+    <div class="flap"></div>
+    <div class="body"><h2 id="coverTitle">電子成績單</h2><p>點擊以開啟成績單</p></div>
+  </div>
+</div>
+<script>
+/* ---------  加載 NotoSansTC-Regular.ttf，確保 pdf.text 能顯示中文  --------- */
+let fontLoaded = false;
+async function loadFont() {
+  if (fontLoaded) return;
+  const fontUrl = 'https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.36/fonts/NotoSansTC-Regular.ttf'; // 或自行改成站內路徑
+  const buf = await fetch(fontUrl).then(r => r.arrayBuffer());
+  const b64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
+  window.jspdf.jsPDF.API.addFileToVFS('NotoSansTC-Regular.ttf', b64);
+  window.jspdf.jsPDF.API.addFont('NotoSansTC-Regular.ttf', 'NotoSansTC', 'normal');
+  fontLoaded = true;
+}
+
+const qs = s => document.querySelector(s);
+
+/* === 信封封面邏輯 === */
+function updateCoverTitle() {
+  qs('#coverTitle').textContent = `${stuInput.value || '學生'} ${yearInput.value || ''} 成績單`;
+}
+qs('#env').addEventListener('click', () => {
+  qs('#env').classList.add('open');
+  setTimeout(() => {
+    qs('#cover').style.display = 'none';
+  }, 800);
+});
+
+/* === 主邏輯 === */
+let rows = [], labels = [], y24 = [], y25 = [], imp = [], isMax = [];
+let chLine, chBar, chRadar, pageNow = 0;
+const pages = [...document.querySelectorAll('.page')];
+
+function setPh() {
+  for (let i = 0; i < 4; i++) {
+    qs('#phYear' + i).textContent = yearInput.value || '-';
+    qs('#phStu' + i).textContent = stuInput.value || '-';
+  }
+  updateCoverTitle();
+}
+
+fileInput.onchange = e => uploadBtn.disabled = !e.target.files.length;
+
+uploadBtn.onclick = () => {
+  const f = fileInput.files[0];
+  if (!f) return alert('未選檔');
+  setPh();
+  const fr = new FileReader();
+  fr.onload = ev => {
+    try {
+      rows = parseCSV(ev.target.result);
+      buildTables();
+      buildCharts();
+      buildSummary();
+      pages.forEach((p, i) => p.style.display = i === 0 ? 'block' : 'none');
+      pageNow = 0;
+      prevBtn.disabled = true;
+      nextBtn.disabled = false;
+      [pdfBtn, sendBtn].forEach(b => b.disabled = false);
+      status.textContent = '✅ 匯入成功！';
+      qs('#cover').style.display = 'flex';
+      qs('#inputPane').style.display = 'none';
+    } catch (e) {
+      alert(e);
+    }
+  };
+  fr.readAsText(f, 'utf-8');
+};
+
+function parseCSV(txt) {
+  const lines = txt.trim().split(/\r?\n/).map(l =>
+    l.split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/).map(c => c.replace(/^"|"$/g, '').trim()));
+  const head = lines[0].map(h => h.replace(/\s/g, '').toLowerCase()), id = k => head.indexOf(k);
+  const need = ['評量指標(cn)', 'indicator(en)', '2024score', '2025score', 'improvement%', '2026target', '範疇(cn)', 'category(en)', '核心說明(cn)', 'description(en)'];
+  if (need.some(k => id(k) < 0)) throw 'CSV 標題缺欄位';
+  let dom = '', cat = '';
+  return lines.slice(1).filter(r => r.length).map(r => {
+    if (r[id('範疇(cn)')]) dom = r[id('範疇(cn)')];
+    if (r[id('category(en)')]) cat = r[id('category(en)')];
+    return [
+      dom, cat,
+      r[id('評量指標(cn)')],
+      r[id('indicator(en)')],
+      r[id('核心說明(cn)')],
+      r[id('description(en)')],
+      +r[id('2024score')] || 0,
+      +r[id('2025score')] || 0,
+      parseFloat(String(r[id('improvement%')]).replace(/[▲%﹪\s]/g, '')) || 0,
+      r[id('2026target')]
+    ];
+  });
+}
+
+function buildTables() {
+  const half = Math.ceil(rows.length / 2);
+  renderTable('#tbl1', rows.slice(0, half));
+  renderTable('#tbl2', rows.slice(half));
+  function renderTable(sel, data) {
+    const $tbl = $(sel), tbody = $tbl.find('tbody')[0];
+    tbody.innerHTML = '';
+    data.forEach(r => {
+      const tr = document.createElement('tr');
+      r.forEach(c => {
+        const td = document.createElement('td');
+        td.textContent = c;
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+    if ($.fn.DataTable.isDataTable(sel)) $tbl.DataTable().destroy();
+    $tbl.DataTable({ paging: false, searching: true, info: false, language: { search: '搜尋:' } });
+  }
+}
+
+function buildCharts() {
+  labels = rows.map(r => r[2]);
+  y24 = rows.map(r => r[6]);
+  y25 = rows.map(r => r[7]);
+  imp = rows.map(r => r[8]);
+  isMax = rows.map(r => String(r[9]).toLowerCase() === 'max');
+
+  [chLine, chBar, chRadar].forEach(c => c && c.destroy());
+
+  let barData = Array(labels.length).fill(0);
+  let barColors = labels.map(() => "var(--accent)");
+  let barBorders = labels.map(() => "var(--main)");
+
+  chBar = new Chart(qs('#cvBar'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: '2025 Score',
+        data: barData.slice(),
+        backgroundColor: barColors.slice(),
+        borderColor: barBorders.slice(),
+        borderWidth: 2
+      }]
+    },
+    options: {
+      animation: { duration: 0 },
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true, max: 10 } }
+    }
+  });
+
+  qs('#cvBar').onclick = e => {
+    let mouseX = e.offsetX, idx = 0, minDist = 1e9;
+    chBar.scales.x.ticks.forEach((_, i) => {
+      let px = chBar.scales.x.getPixelForValue(i), d = Math.abs(mouseX - px);
+      if (d < minDist) { minDist = d; idx = i; }
+    });
+    if (idx < 0 || idx >= y25.length) return;
+    chBar.data.datasets[0].data[idx] = 0;
+    chBar.update();
+    setTimeout(() => {
+      chBar.data.datasets[0].data[idx] = y25[idx];
+      if (isMax[idx]) {
+        chBar.data.datasets[0].backgroundColor[idx] = "var(--danger)";
+        chBar.data.datasets[0].borderColor[idx] = "#c55e78";
+        chBar.update();
+        star(e.pageX, e.pageY);
+      } else {
+        chBar.data.datasets[0].backgroundColor[idx] = "var(--accent)";
+        chBar.data.datasets[0].borderColor[idx] = "var(--main)";
+        chBar.update();
+      }
+    }, 60);
+  };
+
+  chLine = new Chart(qs('#cvLine'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: '2024', data: y24, borderColor: 'var(--line24)', borderWidth: 2, fill: false, tension: .35 },
+        { label: '2025', data: y25, borderColor: 'var(--line25)', borderWidth: 2, fill: false, tension: .35 }
+      ]
+    },
+    options: {
+      animation: { duration: 1500 },
+      plugins: { legend: { labels: { boxWidth: 14 } } },
+      responsive: true
+    }
+  });
+
+  const byDom = {};
+  rows.forEach(r => {
+    if (!byDom[r[0]]) byDom[r[0]] = [];
+    byDom[r[0]].push(r[7]);
+  });
+  const domLabels = Object.keys(byDom);
+  const domAvg = domLabels.map(k => (byDom[k].reduce((a, b) => a + b) / byDom[k].length).toFixed(2));
+
+  chRadar = new Chart(qs('#cvRadar'), {
+    type: 'radar',
+    data: {
+      labels: domLabels,
+      datasets: [{
+        label: '2025 平均',
+        data: domAvg,
+        backgroundColor: 'rgba(232,196,221,.35)',
+        borderColor: 'var(--line25)',
+        borderWidth: 2
+      }]
+    },
+    options: {
+      scales: { r: { beginAtZero: true, max: 10, ticks: { stepSize: 2 } } }
+    }
+  });
+}
+
+function esc(str) {
+  return str.replace(/[&<>"']/g, s => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[s]));
+}
+
+function buildSummary() {
+  qs('#teacherCmt').textContent = cmtInput.value.trim() || '(無)';
+  let strong = [], weak = [];
+  y25.forEach((v, i) => {
+    const o = { 指標: labels[i], 分數: v };
+    (v >= 9 ? strong : weak).push(o);
+  });
+
+  qs('#strongBox').innerHTML =
+    `<div class="summary-note">分數達 9–10 分為精熟等級，請持續發揮強項，成為班級楷模！</div>` +
+    (strong.length ? `<b style="font-size:1.1rem">優勢亮點</b><table class="result-table"><tr><th>指標</th><th>2025分數</th></tr>${strong.map(r => `<tr class="score-high"><td>${esc(r.指標)}</td><td>${r.分數}</td></tr>`).join('')}</table>` : `<b>無特別突出項目。</b>`);
+
+  qs('#weakBox').innerHTML =
+    `<div class="summary-note">分數低於 9 表示該指標仍有進步空間，請在新學年積極加強練習。</div>` +
+    (weak.length ? `<b style="font-size:1.1rem">需努力 (分數 &lt; 9)</b><table class="result-table"><tr><th>指標</th><th>2025分數</th></tr>${weak.map(r => `<tr class="score-low"><td>${esc(r.指標)}</td><td>${r.分數}</td></tr>`).join('')}</table>` : `<b>未發現明顯短板。</b>`);
+}
+
+function star(x, y) {
+  for (let i = 0; i < 12; i++) {
+    const s = document.createElement('div');
+    s.className = 'star';
+    document.body.appendChild(s);
+    s.style.left = x + 'px';
+    s.style.top = y + 'px';
+    const a = Math.random() * 6.28, d = 40 + Math.random() * 60;
+    s.animate([{ transform: 'translate(0,0)', opacity: 1 }, { transform: `translate(${Math.cos(a) * d}px,${Math.sin(a) * d}px)`, opacity: 0 }], { duration: 900 });
+    setTimeout(() => s.remove(), 950);
+  }
+}
+
+prevBtn.onclick = () => nav(pageNow - 1);
+nextBtn.onclick = () => nav(pageNow + 1);
+function nav(n) {
+  if (n < 0 || n >= pages.length) return;
+  setPh();
+  pages.forEach((p, i) => p.style.display = i === n ? 'block' : 'none');
+  pageNow = n;
+  prevBtn.disabled = n === 0;
+  nextBtn.disabled = n === pages.length - 1;
+  if (n === 2) [chLine, chBar, chRadar].forEach(c => { c.resize(); c.update(); });
+}
+
+/* === ✅ 優化 PDF 輸出 === */
+async function makePDF() {
+  await loadFont();                              // 先確保字型就緒
+  /* 先暫存互動前的資料，強制顯示完整長條圖 */
+  const originalBar = [...chBar.data.datasets[0].data];
+  chBar.data.datasets[0].data = y25.slice();
+  chBar.update();
+
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF({ orientation: 'portrait', unit: 'px', format: 'a4' });
+  const mainRgb = [110, 90, 140];
+  const margin  = 28;
+
+  pdf.setFont('NotoSansTC');                     // 使用剛剛嵌入的字型
+  pdf.setFontSize(14);
+
+  for (let i = 0; i < pages.length; i++) {
+    nav(i);                                      // 切換到對應頁
+    const cnv   = await html2canvas(pages[i], { scale: 2, useCORS: true });
+    const pageW = pdf.internal.pageSize.getWidth();
+    const avail = pageW - margin * 2;
+    const imgH  = cnv.height * avail / cnv.width;
+
+    if (i) pdf.addPage();
+
+    /* — 專業化頁眉 — */
+    pdf.setFillColor(...mainRgb);
+    pdf.rect(0, 0, pageW, 34, 'F');
+    pdf.setTextColor(255, 255, 255);
+    pdf.text(`${yearInput.value} 成績單 — ${stuInput.value}`, margin, 22);
+    pdf.text(`Page ${i + 1} / ${pages.length}`, pageW - margin - 64, 22);
+
+    /* — 內容區 — */
+    pdf.addImage(cnv, 'PNG', margin, 46, avail, imgH);
+  }
+  nav(0);                                        // 還原到首頁
+
+  /* 還原長條圖原始互動狀態，避免影響使用者後續操作 */
+  chBar.data.datasets[0].data = originalBar;
+  chBar.update();
+
+  return pdf;
+}
+
+/* === 匯出 PDF 按鈕 === */
+const pdfBtn = qs('#pdfBtn');
+pdfBtn.addEventListener('click', async () => {
+  if (pdfBtn.disabled) return;
+  pdfBtn.disabled = true;
+  const originalText = pdfBtn.textContent;
+  pdfBtn.textContent = '生成中…';
+  try {
+    const pdf = await makePDF();
+    const stuName = qs('#stuInput')?.value?.trim() || 'report';
+    pdf.save(stuName + '.pdf');
+  } catch (err) {
+    console.error(err);
+    alert('⚠️ 產生 PDF 時出現錯誤，請查看主控台或稍後再試');
+  } finally {
+    pdfBtn.textContent = originalText;
+    pdfBtn.disabled = false;
+  }
+});
+
+/* === EmailJS 寄送 === */
+emailjs.init(EMAILJS_PUBLIC_KEY);
+sendBtn.onclick = async () => {
+  const mail = mailInput.value.trim();
+  if (!mail) return alert('請輸入信箱');
+  status.textContent = '⏳ 產生 PDF…';
+  try {
+    const pdf = await makePDF();
+    status.textContent = '⏳ 寄送中…';
+    await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
+      user_email: mail,
+      attachment: pdf.output('datauristring'),
+      message_html: `${yearInput.value} 慈濟中文學校成績單（${stuInput.value}），詳見附件`
+    });
+    status.textContent = '✅ 已寄出！';
+    alert('Email 已寄出，請檢查收件匣。');
+  } catch (e) {
+    console.error(e);
+    status.textContent = '❌ 寄送失敗';
+    alert('EmailJS 寄送失敗，請確認設定或收件人信箱。');
+  }
+};
+</script>
+</body>
+</html>
